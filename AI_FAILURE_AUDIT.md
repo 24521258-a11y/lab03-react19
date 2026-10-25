@@ -108,22 +108,19 @@ Move the loading transition into the event handler that starts the request.
 For example:
 
 ```jsx
-const handleConnect = () => {
-  setResult({
-    status: STATUS.LOADING,
-    data: null,
-    error: '',
-  });
+const status = !request
+  ? STATUS.IDLE
+  : result.requestId !== request.id
+    ? STATUS.LOADING
+    : result.status;
 
-  setRequest({
-    squadId,
-    packetLoss,
-    attempt: requestCount + 1,
-  });
-};
 ```
 
-The complete implementation must also handle request cancellation, squad changes, and retry attempts.
+The implementation was refactored to derive the loading status from the active request identifier. Each connection attempt receives a unique request ID, while AbortController cancels obsolete requests during cleanup.
+
+This removes the need for a synchronous state update inside useEffect and eliminates the previous lint suppression comment.
+
+The Scientist Directory reset function was also corrected to restore the initialData property rather than a hardcoded dataset.
 
 ### Lesson Learned
 
