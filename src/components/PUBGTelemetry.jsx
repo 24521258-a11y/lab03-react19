@@ -17,11 +17,10 @@ const STATUS = {
 export default function PUBGTelemetry() {
   const [squadId, setSquadId] = useState(PUBG_SQUADS[0].id);
   const [packetLoss, setPacketLoss] = useState(false);
-  const [requestCount, setRequestCount] = useState(0);
-
   const [request, setRequest] = useState(null);
 
   const [result, setResult] = useState({
+    requestId: null,
     status: STATUS.IDLE,
     data: null,
     error: '',
@@ -30,33 +29,39 @@ export default function PUBGTelemetry() {
   const squadSelectId = useId();
   const packetLossId = useId();
 
-  // Start a new request by changing the request parameters.
-  const handleConnect = () => {
-    setRequestCount((previous) => previous + 1);
-    setRequest({
-      squadId,
-      packetLoss,
-      attempt: requestCount + 1,
-    });
+  // Create a unique request for every connection attempt.
+  const startRequest = (nextSquadId, nextPacketLoss) => {
+    setRequest((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      squadId: nextSquadId,
+      packetLoss: nextPacketLoss,
+    }));
   };
 
+  // Start connection or retry after an error.
+  const handleConnect = () => {
+    startRequest(squadId, packetLoss);
+  };
+
+  // Automatically connect when switching squads.
   const handleSquadChange = (event) => {
     const nextSquadId = event.target.value;
 
     setSquadId(nextSquadId);
-    setRequestCount((previous) => previous + 1);
-
-    // Switching squads starts a new request automatically.
-    setRequest({
-      squadId: nextSquadId,
-      packetLoss,
-      attempt: requestCount + 1,
-    });
+    startRequest(nextSquadId, packetLoss);
   };
 
   const handlePacketLossChange = (event) => {
     setPacketLoss(event.target.checked);
   };
+
+  // Derive the current visible status.
+  // No synchronous setState inside useEffect.
+  const status = !request
+    ? STATUS.IDLE
+    : result.requestId !== request.id
+      ? STATUS.LOADING
+      : result.status;
 
   useEffect(() => {
     if (!request) {
@@ -64,15 +69,6 @@ export default function PUBGTelemetry() {
     }
 
     const controller = new AbortController();
-
-    // Request lifecycle starts.
-    // This is an intentional loading transition.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setResult({
-      status: STATUS.LOADING,
-      data: null,
-      error: '',
-    });
 
     fetchSquadTelemetry(request.squadId, {
       signal: controller.signal,
@@ -83,6 +79,7 @@ export default function PUBGTelemetry() {
         if (controller.signal.aborted) return;
 
         setResult({
+          requestId: request.id,
           status: STATUS.SUCCESS,
           data,
           error: '',
@@ -93,13 +90,14 @@ export default function PUBGTelemetry() {
         if (error.name === 'AbortError') return;
 
         setResult({
+          requestId: request.id,
           status: STATUS.ERROR,
           data: null,
           error: error.message,
         });
       });
 
-    // Cancel old requests when switching squad or unmounting.
+    // Cleanup prevents stale requests from updating state.
     return () => {
       controller.abort();
     };
@@ -120,8 +118,14 @@ export default function PUBGTelemetry() {
         </p>
       </header>
 
-      <section className={styles.controls} aria-label="Telemetry controls">
-        <label className={styles.controlGroup} htmlFor={squadSelectId}>
+      <section
+        className={styles.controls}
+        aria-label="Telemetry controls"
+      >
+        <label
+          className={styles.controlGroup}
+          htmlFor={squadSelectId}
+        >
           Select Squad
 
           <select
@@ -137,7 +141,10 @@ export default function PUBGTelemetry() {
           </select>
         </label>
 
-        <label className={styles.checkboxLabel} htmlFor={packetLossId}>
+        <label
+          className={styles.checkboxLabel}
+          htmlFor={packetLossId}
+        >
           <input
             id={packetLossId}
             type="checkbox"
@@ -152,7 +159,7 @@ export default function PUBGTelemetry() {
           className={styles.button}
           onClick={handleConnect}
         >
-          {result.status === STATUS.ERROR
+          {status === STATUS.ERROR
             ? 'Retry / Reconnect'
             : 'Connect'}
         </button>
@@ -163,20 +170,20 @@ export default function PUBGTelemetry() {
         role="status"
         aria-live="polite"
       >
-        Connection Status: {result.status}
+        Connection Status: {status}
       </p>
 
-      {result.status === STATUS.IDLE && (
+      {status === STATUS.IDLE && (
         <p>
           Select a squad and press Connect to start monitoring.
         </p>
       )}
 
-      {result.status === STATUS.LOADING && (
+      {status === STATUS.LOADING && (
         <TelemetrySkeleton />
       )}
 
-      {result.status === STATUS.ERROR && (
+      {status === STATUS.ERROR && (
         <section
           className={styles.error}
           role="alert"
@@ -194,10 +201,8 @@ export default function PUBGTelemetry() {
         </section>
       )}
 
-      {result.status === STATUS.SUCCESS && result.data && (
-        <section
-          aria-label="Squad statistics"
-        >
+      {status === STATUS.SUCCESS && result.data && (
+        <section aria-label="Squad statistics">
           <h3>{result.data.name}</h3>
 
           <p>Region: {result.data.region}</p>
