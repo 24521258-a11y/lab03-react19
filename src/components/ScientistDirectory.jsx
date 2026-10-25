@@ -33,11 +33,11 @@ export default function ScientistDirectory({
   };
 
   const handleReset = () => {
-    setPeople([...SMART_PEOPLE]);
-    setQuery('');
-    setMinIq(60);
-    setSortBy('iq-desc');
-  };
+  setPeople([...initialData]);
+  setQuery('');
+  setMinIq(60);
+  setSortBy('iq-desc');
+};
 
   return (
     <section className={styles.directory} aria-labelledby="directory-title">
