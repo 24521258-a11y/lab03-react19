@@ -1,6 +1,7 @@
 
 import DeveloperCard from './components/DeveloperCard';
 import ScientistDirectory from './components/ScientistDirectory';
+import PUBGTelemetry from './components/PUBGTelemetry';
 import './App.css';
 
 export default function App() {
@@ -11,6 +12,8 @@ export default function App() {
       <DeveloperCard />
 
       <ScientistDirectory />
+
+      <PUBGTelemetry />
     </main>
   );
 }
